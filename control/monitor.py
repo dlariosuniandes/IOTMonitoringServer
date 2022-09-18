@@ -11,7 +11,10 @@ from django.conf import settings
 client = mqtt.Client(settings.MQTT_USER_PUB)
 
 def analyze_data_custom():
-    data = Data.objects.filter( base_time__gte=datetime.now() - timedelta(minutes=1))
+    
+    print("Calculando alertas de humedad...")
+    
+    data = Data.objects.filter( base_time__gte=datetime.now() - timedelta(hours=1))
     aggregation  = data.annotate(check_value=Max('max_value')) \
         .select_related('station', 'measurement') \
         .select_related('station__user', 'station__location') \
@@ -42,7 +45,7 @@ def analyze_data_custom():
             alerts += 1
             
     print(len(aggregation), "dispositivos revisados")
-    print(alerts, "alertas enviadas")
+    print(alerts, "alertas de humedad enviadas")
         
         
 def analyze_data():
@@ -66,7 +69,7 @@ def analyze_data():
                 'station__location__city__name',
                 'station__location__state__name',
                 'station__location__country__name')
-
+    alerts = 0
     for item in aggregation:
         alert = False
 
@@ -144,4 +147,4 @@ def start_cron():
     print("Servicio de control iniciado")
     while 1:
         schedule.run_pending()
-        time.sleep(1)
+        time.sleep(0.5)
