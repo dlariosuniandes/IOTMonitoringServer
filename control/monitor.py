@@ -10,7 +10,41 @@ from django.conf import settings
 
 client = mqtt.Client(settings.MQTT_USER_PUB)
 
+def analyze_data_custom():
+    data = Data.objects.filter( base_time__gte=datetime.now() - timedelta(minutes=1))
+    aggregation  = data.annotate(check_value=Max('max_value')) \
+        .select_related('station', 'measurement') \
+        .select_related('station__user', 'station__location') \
+        .select_related('station__location__city', 'station__location__state',
+                        'station__location__country') \
+        .values('check_value', 'station__user__username',
+                'measurement__name',
+                'station__location__city__name',
+                'station__location__state__name',
+                'station__location__country__name')                   
+    alerts = 0
+    for item in aggregation:
+        alert = False
+        variable = item["measurement__name"]
 
+        country = item['station__location__country__name']
+        state = item['station__location__state__name']
+        city = item['station__location__city__name']
+        user = item['station__user__username']
+        
+        if item["check_value"] > 60.0:
+            alert = True
+        if alert:
+            message = "ALERT OF HUMIDITY {}".format(variable,item["check_value"])
+            topic = '{}/{}/{}/{}/in'.format(country, state, city, user)
+            print(datetime.now(), "Sending alert to {} {}".format(topic, variable))
+            client.publish(topic, message)
+            alerts += 1
+            
+    print(len(aggregation), "dispositivos revisados")
+    print(alerts, "alertas enviadas")
+        
+        
 def analyze_data():
     # Consulta todos los datos de la última hora, los agrupa por estación y variable
     # Compara el promedio con los valores límite que están en la base de datos para esa variable.
@@ -32,38 +66,7 @@ def analyze_data():
                 'station__location__city__name',
                 'station__location__state__name',
                 'station__location__country__name')
-    # Agregación para revisar humedad 
-    data2 = Data.objects.filter( base_time__gte=datetime.now() - timedelta(minutes=1))
-    aggregation2  = data2.annotate(check_value=Max('max_value')) \
-        .select_related('station', 'measurement') \
-        .select_related('station__user', 'station__location') \
-        .select_related('station__location__city', 'station__location__state',
-                        'station__location__country') \
-        .values('check_value', 'station__user__username',
-                'measurement__name',
-                'station__location__city__name',
-                'station__location__state__name',
-                'station__location__country__name')                   
-    alerts = 0
-    for item in aggregation2:
-        alert = False
-        variable = item["measurement__name"]
 
-        country = item['station__location__country__name']
-        state = item['station__location__state__name']
-        city = item['station__location__city__name']
-        user = item['station__user__username']
-        
-        if item["check_value"] > 60.0:
-            alert = True
-        if alert:
-            message = "ALERT OF HUMIDITY {}".format(variable,item["check_value"])
-            topic = '{}/{}/{}/{}/in'.format(country, state, city, user)
-            print(datetime.now(), "Sending alert to {} {}".format(topic, variable))
-            client.publish(topic, message)
-            alerts += 1
-        
-        
     for item in aggregation:
         alert = False
 
@@ -137,6 +140,7 @@ def start_cron():
     '''
     print("Iniciando cron...")
     schedule.every(5).minutes.do(analyze_data)
+    schedule.every(1).minutes.do(analyze_data_custom)
     print("Servicio de control iniciado")
     while 1:
         schedule.run_pending()
