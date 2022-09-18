@@ -38,7 +38,7 @@ def analyze_data_custom():
         if item["check_value"] > 60.0 & item["measurement__name"] == "humedad":
             alert = True
         if alert:
-            message = "ALERT OF HUMIDITY {}".format(variable,item["check_value"])
+            message = "ALERT OF HUMIDITY {}".format(item["check_value"])
             topic = '{}/{}/{}/{}/in'.format(country, state, city, user)
             print(datetime.now(), "Sending alert to {} {}".format(topic, variable))
             client.publish(topic, message)
@@ -142,7 +142,7 @@ def start_cron():
     Inicia el cron que se encarga de ejecutar la función analyze_data cada 5 minutos.
     '''
     print("Iniciando cron...")
-    schedule.every(5).minutes.do(analyze_data)
+    # schedule.every(5).minutes.do(analyze_data)
     schedule.every(1).minutes.do(analyze_data_custom)
     print("Servicio de control iniciado")
     while 1:
