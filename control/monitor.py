@@ -35,7 +35,7 @@ def analyze_data_custom():
         city = item['station__location__city__name']
         user = item['station__user__username']
         
-        if item["check_value"] > 60.0:
+        if item["check_value"] > 60.0 & item["measurement__name"] == "humedad":
             alert = True
         if alert:
             message = "ALERT OF HUMIDITY {}".format(variable,item["check_value"])
@@ -147,4 +147,4 @@ def start_cron():
     print("Servicio de control iniciado")
     while 1:
         schedule.run_pending()
-        time.sleep(0.5)
+        time.sleep(1)
