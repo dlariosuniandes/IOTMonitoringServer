@@ -1,6 +1,6 @@
 from argparse import ArgumentError
 import ssl
-from django.db.models import Avg
+from django.db.models import Avg, Max
 from datetime import timedelta, datetime
 from receiver.models import Data, Measurement
 import paho.mqtt.client as mqtt
@@ -32,7 +32,38 @@ def analyze_data():
                 'station__location__city__name',
                 'station__location__state__name',
                 'station__location__country__name')
+    # Agregación para revisar humedad 
+    data2 = Data.objects.filter( base_time__gte=datetime.now() - timedelta(minutes=1))
+    aggregation2  = data2.annotate(check_value=Max('max_value')) \
+        .select_related('station', 'measurement') \
+        .select_related('station__user', 'station__location') \
+        .select_related('station__location__city', 'station__location__state',
+                        'station__location__country') \
+        .values('check_value', 'station__user__username',
+                'measurement__name',
+                'station__location__city__name',
+                'station__location__state__name',
+                'station__location__country__name')                   
     alerts = 0
+    for item in aggregation2:
+        alert = False
+        variable = item["measurement__name"]
+
+        country = item['station__location__country__name']
+        state = item['station__location__state__name']
+        city = item['station__location__city__name']
+        user = item['station__user__username']
+        
+        if item["check_value"] > 60.0:
+            alert = True
+        if alert:
+            message = "ALERT OF HUMIDITY {}".format(variable,item["check_value"])
+            topic = '{}/{}/{}/{}/in'.format(country, state, city, user)
+            print(datetime.now(), "Sending alert to {} {}".format(topic, variable))
+            client.publish(topic, message)
+            alerts += 1
+        
+        
     for item in aggregation:
         alert = False
 
